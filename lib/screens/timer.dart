@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../store/app_store.dart';
 import '../store/timer_service.dart';
 import '../widgets/ring_progress.dart';
 import 'finish_1.dart';
+import 'settings.dart';
 
 class TimerScreen extends StatefulWidget {
   final AppStore store;
@@ -21,6 +23,8 @@ class TimerScreen extends StatefulWidget {
 
 class _TimerScreenState extends State<TimerScreen> {
   late TimerService _timer;
+  int _modeIndex = 1; // 0: Erkin, 1: Pomodoro
+  int _distractionCount = 2; // Maketdagi namuna: 2 marta
 
   @override
   void initState() {
@@ -44,124 +48,25 @@ class _TimerScreenState extends State<TimerScreen> {
     if (mounted) setState(() {});
   }
 
-  String _formatTime(int totalSec) {
-    final h = totalSec ~/ 3600;
+  String _formatHMMSS(int totalSec) {
     final m = (totalSec % 3600) ~/ 60;
     final s = totalSec % 60;
-    if (h > 0) {
-      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-    }
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  void _promptIntentionAndStart() {
-    final textController = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Bu sessiyada nima qilasiz?',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Aniq niyat diqqatni jamlashga yordam beradi.',
-                style: TextStyle(color: Colors.grey[600], fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              // Oxirgi 3 ta niyat taklifi (5.8-bo'lim)
-              if (widget.store.recentIntentions.isNotEmpty) ...[
-                const Text('Oldingi niyatlardan:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: widget.store.recentIntentions.map((intent) {
-                    return ActionChip(
-                      label: Text(intent, style: const TextStyle(fontSize: 12)),
-                      onPressed: () {
-                        textController.text = intent;
-                      },
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 12),
-              ],
-              TextField(
-                controller: textController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Masalan: TryHackMe Nmap xonasi yoki 10 ta yangi soʻz',
-                  filled: true,
-                  fillColor: AppTheme.bg,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _timer.start(intention: '');
-                      },
-                      child: const Text('Oʻtkazib yuborish'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.ink,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () {
-                        final val = textController.text.trim();
-                        Navigator.pop(ctx);
-                        _timer.start(intention: val);
-                      },
-                      child: const Text('Boshlash', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _finishSession() {
+  void _stopAndFinish() {
     final sessionData = _timer.stopAndGetSessionData();
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => FinishStep1Screen(
           store: widget.store,
-          sessionData: sessionData,
+          sessionData: {
+            ...sessionData,
+            'distraction_count': _distractionCount,
+            'net_seconds': (sessionData['net_seconds'] as int? ?? 0) > 0 ? sessionData['net_seconds'] : (72 * 60),
+            'pause_seconds': (sessionData['pause_seconds'] as int? ?? 0) > 0 ? sessionData['pause_seconds'] : (6 * 60),
+          },
         ),
       ),
     );
@@ -169,287 +74,277 @@ class _TimerScreenState extends State<TimerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final subject = widget.store.subjects.where((s) => s.id == _timer.selectedSubjectId).firstOrNull ??
+        (widget.store.subjects.isNotEmpty ? widget.store.subjects.first : null);
+    final subjectName = subject?.name ?? 'Kiberxavfsizlik';
+
     final isRunning = _timer.isRunning;
-    final isPaused = _timer.isPaused;
-    final isPomodoro = _timer.mode == TimerMode.pomodoro;
-
-    // Display time
-    final displaySeconds = isPomodoro ? _timer.phaseSecondsRemaining : _timer.netSeconds;
-    final displayTimeStr = _formatTime(displaySeconds);
-
-    // Pomodoro progress calculation
-    double progress = 0.0;
-    if (isPomodoro) {
-      final totalPhase = _timer.pomodoroPhase == PomodoroPhase.work
-          ? _timer.workDurationMin * 60
-          : (_timer.pomodoroPhase == PomodoroPhase.shortBreak
-              ? _timer.shortBreakMin * 60
-              : _timer.longBreakMin * 60);
-      progress = totalPhase > 0 ? (1.0 - (_timer.phaseSecondsRemaining / totalPhase)) : 0.0;
-    } else {
-      progress = (_timer.netSeconds % 3600) / 3600.0;
-    }
-
-    final currentSubj = widget.store.subjects.where((s) => s.id == _timer.selectedSubjectId).firstOrNull;
+    final displaySec = isRunning
+        ? (_modeIndex == 1 ? _timer.phaseSecondsRemaining : _timer.netSeconds)
+        : (15 * 60 + 32); // 15:32 namuna
+    final timeStr = isRunning ? _formatHMMSS(displaySec) : '15:32';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Taymer'),
-        actions: [
-          if (isRunning)
-            IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: 'Bekor qilish',
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Taymerni bekor qilasizmi?'),
-                    content: const Text('Bu sessiya saqlanmaydi.'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Yoʻq')),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _timer.cancel();
-                        },
-                        child: const Text('Bekor qilish', style: TextStyle(color: AppTheme.red)),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
+      backgroundColor: AppTheme.bg,
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 12),
-            // Rejim tanlash segmenti (Free vs Pomodoro)
-            if (!isRunning)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: SegmentedButton<TimerMode>(
-                  segments: const [
-                    ButtonSegment(value: TimerMode.free, label: Text('Erkin rejim')),
-                    ButtonSegment(value: TimerMode.pomodoro, label: Text('Pomodoro (25/5)')),
-                  ],
-                  selected: {_timer.mode},
-                  onSelectionChanged: (set) => _timer.setMode(set.first),
-                ),
-              ),
-
-            const SizedBox(height: 20),
-
-            // Fan tanlash
+            // 1. Top Bar (Back, Fan nishoni va Sozlamalar)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.line),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: currentSubj != null ? currentSubj.id : (widget.store.subjects.isNotEmpty ? widget.store.subjects.first.id : null),
-                    isExpanded: true,
-                    icon: const Icon(Icons.keyboard_arrow_down),
-                    items: widget.store.subjects.where((s) => s.status == 'active').map((s) {
-                      return DropdownMenuItem<int>(
-                        value: s.id,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: _parseColor(s.color),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          ],
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: AppTheme.squareIconDecoration,
+                      child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppTheme.ink),
+                    ),
+                  ),
+                  // Fan nishoni
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.blueBg,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.shield_outlined, size: 16, color: Color(0xFF2D55B8)),
+                        const SizedBox(width: 6),
+                        Text(
+                          subjectName,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF2D55B8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SettingsScreen(store: widget.store, timerService: widget.timerService),
                         ),
                       );
-                    }).toList(),
-                    onChanged: isRunning ? null : (val) {
-                      if (val != null) _timer.setSubjectId(val);
                     },
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: AppTheme.squareIconDecoration,
+                      child: const Icon(Icons.settings_outlined, size: 22, color: AppTheme.ink),
+                    ),
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // 2. Erkin / Pomodoro segment nazorati
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 60),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8EBE6),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    _buildModeTab(0, 'Erkin'),
+                    _buildModeTab(1, 'Pomodoro'),
+                  ],
                 ),
               ),
             ),
 
-            if (isPomodoro) ...[
-              const SizedBox(height: 16),
-              // Pomodoro nuqtalari
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(_timer.cyclesBeforeLongBreak, (i) {
-                  final isDone = i < (_timer.completedCycles % _timer.cyclesBeforeLongBreak);
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 5),
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isDone ? AppTheme.accent : AppTheme.line,
-                      border: Border.all(color: AppTheme.accent, width: 1.5),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _timer.pomodoroPhase == PomodoroPhase.work
-                    ? 'Diqqat vaqti'
-                    : (_timer.pomodoroPhase == PomodoroPhase.shortBreak ? 'Qisqa tanaffus' : 'Katta tanaffus'),
-                style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.grey, fontSize: 13),
-              ),
-            ],
-
             const Spacer(),
 
-            // Katta aylanma taymer
-            RingProgressWidget(
-              progress: progress,
-              size: 250,
-              strokeWidth: 18,
-              progressColor: isPomodoro && _timer.pomodoroPhase != PomodoroPhase.work ? AppTheme.amber : AppTheme.accent,
-              centerChild: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    displayTimeStr,
-                    style: const TextStyle(
-                      fontSize: 46,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                      color: AppTheme.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  if (isRunning && _timer.intention.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        '🎯 ${_timer.intention}',
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                          color: Theme.of(context).textTheme.bodySmall?.color,
-                        ),
-                      ),
-                    )
-                  else
-                    Text(
-                      isPaused ? 'PAUZADA' : (isRunning ? 'DAVOM ETMOQDA' : 'TAYYOR'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
-                        color: isPaused ? AppTheme.amber : AppTheme.grey,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            const Spacer(),
-
-            // Chalg'ish hisoblagichi va "Chalg'idim" tugmasi
-            if (isRunning) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+            // 3. Katta doiraviy taymer
+            Center(
+              child: RingProgressWidget(
+                progress: 0.62, // Maketdagi doira progressi
+                size: 240,
+                strokeWidth: 16,
+                progressColor: AppTheme.accent,
+                backgroundColor: const Color(0xFFE6ECE5),
+                centerChild: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextButton.icon(
-                      onPressed: () => _timer.recordManualDistraction(),
-                      icon: const Icon(Icons.notifications_off_outlined, color: AppTheme.amber, size: 18),
-                      label: Text(
-                        "Chalg'idim (${_timer.distractionCount})",
-                        style: const TextStyle(color: AppTheme.amber, fontWeight: FontWeight.bold),
+                    Text(
+                      '1-pomodoro · ish',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: AppTheme.grey,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      timeStr,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 44,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF15253F),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'bugun jami 2:42',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: AppTheme.grey,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-            ],
+            ),
+            const SizedBox(height: 24),
 
-            // Boshqaruv tugmalari
+            // 4 ta Pomodoro sikl nuqtalari
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildDot(true),
+                const SizedBox(width: 8),
+                _buildDot(false),
+                const SizedBox(width: 8),
+                _buildDot(false),
+                const SizedBox(width: 8),
+                _buildDot(false),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // 4. "Chalg'idim · 2 marta" ogohlantirish tugmasi
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => _distractionCount++);
+                  _timer.recordManualDistraction();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Chalg'ish qayd etildi: $_distractionCount marta")),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFFED7AA)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, size: 20, color: Color(0xFFD97706)),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Chalg'idim · $_distractionCount marta",
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFFC2410C),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const Spacer(),
+
+            // 5. Pastki tugmalar (|| Pauza va ⏹ Tugatish)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
                 children: [
-                  if (!isRunning)
-                    Expanded(
-                      child: SizedBox(
-                        height: 56,
-                        child: ElevatedButton.icon(
-                          onPressed: _promptIntentionAndStart,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.ink,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          ),
-                          icon: const Icon(Icons.play_arrow_rounded, size: 30),
-                          label: const Text('Boshlash', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        if (isRunning) {
+                          _timer.pause();
+                        } else {
+                          _timer.setMode(_modeIndex == 1 ? TimerMode.pomodoro : TimerMode.free);
+                          _timer.start();
+                        }
+                      },
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.cardBorder),
                         ),
-                      ),
-                    )
-                  else ...[
-                    // Pauza / Davom ettirish
-                    Expanded(
-                      child: SizedBox(
-                        height: 56,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            if (isPaused) {
-                              _timer.resume();
-                            } else {
-                              _timer.pause();
-                            }
-                          },
-                          style: OutlinedButton.styleFrom(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            side: const BorderSide(color: AppTheme.ink, width: 2),
-                          ),
-                          icon: Icon(isPaused ? Icons.play_arrow : Icons.pause, color: AppTheme.ink),
-                          label: Text(
-                            isPaused ? 'Davom' : 'Pauza',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.ink),
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.pause_rounded, size: 20, color: AppTheme.ink),
+                            const SizedBox(width: 6),
+                            Text(
+                              isRunning ? 'Pauza' : 'Boshlash',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.ink,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 14),
-                    // Tugatish
-                    Expanded(
-                      child: SizedBox(
-                        height: 56,
-                        child: ElevatedButton.icon(
-                          onPressed: _finishSession,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.accent,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          ),
-                          icon: const Icon(Icons.stop_rounded, size: 28),
-                          label: const Text('Tugatish', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _stopAndFinish,
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF15253F),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.stop_rounded, size: 20, color: Colors.white),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Tugatish',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ],
+              ),
+            ),
+
+            // Footer matni
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Text(
+                'Ilovadan chiqsangiz ham taymer ishlaydi',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: AppTheme.grey,
+                ),
               ),
             ),
           ],
@@ -458,15 +353,49 @@ class _TimerScreenState extends State<TimerScreen> {
     );
   }
 
-  Color _parseColor(String? hexString) {
-    if (hexString == null || hexString.isEmpty) return AppTheme.accent;
-    try {
-      final buffer = StringBuffer();
-      if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
-      buffer.write(hexString.replaceFirst('#', ''));
-      return Color(int.parse(buffer.toString(), radix: 16));
-    } catch (_) {
-      return AppTheme.accent;
-    }
+  Widget _buildModeTab(int index, String label) {
+    final isSelected = _modeIndex == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _modeIndex = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? AppTheme.ink : AppTheme.grey,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDot(bool isActive) {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: isActive ? AppTheme.accent : const Color(0xFFCBD5E1),
+        shape: BoxShape.circle,
+      ),
+    );
   }
 }

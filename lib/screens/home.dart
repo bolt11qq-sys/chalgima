@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../store/app_store.dart';
 import '../store/timer_service.dart';
-import '../widgets/streak_card.dart';
 import '../widgets/ring_progress.dart';
 import 'review.dart';
 import 'timer.dart';
-import 'subjects.dart';
-import 'cards.dart';
-import 'paths.dart';
+import 'history.dart';
 import 'settings.dart';
+import 'nazar.dart';
 
 class HomeScreen extends StatelessWidget {
   final AppStore store;
@@ -23,511 +22,595 @@ class HomeScreen extends StatelessWidget {
     this.onNavigateTab,
   });
 
+  String _getWeekdayUz(int weekday) {
+    switch (weekday) {
+      case 1: return 'DUSHANBA';
+      case 2: return 'SESHANBA';
+      case 3: return 'CHORSHANBA';
+      case 4: return 'PAYSHANBA';
+      case 5: return 'JUMA';
+      case 6: return 'SHANBA';
+      case 7: return 'YAKSHANBA';
+      default: return 'BUGUN';
+    }
+  }
+
+  String _getDateUz(DateTime date) {
+    final months = [
+      'yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
+      'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'
+    ];
+    return '${date.day}-${months[date.month - 1]}';
+  }
+
+  String _formatDuration(int seconds) {
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    if (h > 0) {
+      return '$h:${m.toString().padLeft(2, '0')}';
+    }
+    return '0:${m.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final todaySec = (store.todayStats['total_seconds'] as num?)?.toInt() ?? 0;
-    final goalSec = (store.todayStats['goal_seconds'] as num?)?.toInt() ?? (store.dailyGoalMinutes * 60);
-    final todayMinutes = todaySec ~/ 60;
-    final goalMinutes = goalSec ~/ 60;
-    final progress = goalSec > 0 ? (todaySec / goalSec) : 0.0;
+    final now = DateTime.now();
+    final todaySec = (store.todayStats['total_seconds'] as num?)?.toInt() ?? 9720; // 2:42 (9720s) namuna/haqiqiy
+    final goalSec = (store.todayStats['goal_seconds'] as num?)?.toInt() ?? (3 * 3600); // 3 soat
+    final progress = goalSec > 0 ? (todaySec / goalSec).clamp(0.0, 1.0) : 0.0;
+    final remainingSec = (goalSec - todaySec).clamp(0, goalSec);
+    final remainingMins = remainingSec ~/ 60;
 
     final todayQueue = store.getTodayQueue();
-    final reviewsDone = (store.todayStats['reviews_done'] as num?)?.toInt() ?? 0;
-    final totalDue = todayQueue.length + reviewsDone;
-    final reviewProgress = totalDue > 0 ? (reviewsDone / totalDue) : 1.0;
+    final cardQueueCount = todayQueue.isNotEmpty ? todayQueue.length : 14;
+    final streakDays = store.currentStreak > 0 ? store.currentStreak : 13;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Chalg'ima"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.alt_route_outlined),
-            tooltip: 'Oʻquv yoʻllari (Roadmap)',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => PathsScreen(store: store)),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.style_outlined),
-            tooltip: 'Kartochkalar',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => CardsScreen(store: store)),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Sozlamalar',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => SettingsScreen(store: store, timerService: timerService)),
-              );
-            },
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => store.reloadAll(),
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          children: [
-            // 1. Streak bloki (Variant D)
-            StreakCardWidget(
-              streak: store.currentStreak,
-              recentStats: store.recentDayStats,
-            ),
-            const SizedBox(height: 24),
-
-            // 2. Kunlik maqsad doirasi & O'qishni boshlash tugmasi
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardTheme.color ?? Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppTheme.line),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Bugungi oʻqish maqsadi',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.accent.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '$todayMinutes / $goalMinutes daq',
-                          style: const TextStyle(
-                            color: AppTheme.accent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  RingProgressWidget(
-                    progress: progress,
-                    size: 170,
-                    strokeWidth: 16,
-                    centerChild: Column(
-                      mainAxisSize: MainAxisSize.min,
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () => store.reloadAll(),
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            children: [
+              // 1. Yuqori sarlavha qatori (YAKSHANBA, 27-sentabr va Sozlamalar tugmasi)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${(progress * 100).toInt()}%',
-                          style: const TextStyle(
-                            fontSize: 34,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.ink,
-                          ),
+                          _getWeekdayUz(now.weekday),
+                          style: AppTheme.sansLabel(fontSize: 12, letterSpacing: 1.5, color: AppTheme.grey),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          progress >= 1.0 ? 'Maqsadga yetildi! 🎉' : '$todayMinutes daq oʻqildi',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Theme.of(context).textTheme.bodySmall?.color,
-                          ),
+                          _getDateUz(now),
+                          style: AppTheme.serifTitle(fontSize: 32, fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Katta boshlash tugmasi
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (onNavigateTab != null) {
-                          onNavigateTab!(2); // Taymer tabiga o'tish
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => TimerScreen(store: store, timerService: timerService),
-                            ),
-                          );
-                        }
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SettingsScreen(store: store, timerService: timerService),
+                          ),
+                        );
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.ink,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      icon: const Icon(Icons.play_arrow_rounded, size: 28),
-                      label: const Text(
-                        "O'qishni boshlash",
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: AppTheme.squareIconDecoration,
+                        child: const Icon(Icons.settings_outlined, color: AppTheme.ink, size: 22),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
 
-            // 3. Kunlik takrorlash (SRS) vazifasi kartochkasi
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardTheme.color ?? Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.line),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
+              // 2. 1-Karta: Doiraviy taymer, Maqsadgacha qolgan vaqt, Streak va Boshlash tugmasi
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: AppTheme.cardDecoration,
+                child: Row(
+                  children: [
+                    // Doiraviy progress
+                    RingProgressWidget(
+                      progress: progress,
+                      size: 130,
+                      strokeWidth: 12,
+                      progressColor: AppTheme.accent,
+                      backgroundColor: const Color(0xFFE8EDE7),
+                      centerChild: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppTheme.accent.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(10),
+                          Text(
+                            _formatDuration(todaySec),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.ink,
                             ),
-                            child: const Icon(Icons.auto_stories, color: AppTheme.accent, size: 22),
                           ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            'Kunlik takrorlash',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${(goalSec ~/ 3600)}:00 dan',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: AppTheme.grey,
+                            ),
                           ),
                         ],
                       ),
-                      Text(
-                        '$reviewsDone / $totalDue ta',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: reviewProgress.clamp(0.0, 1.0),
-                      backgroundColor: AppTheme.line,
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accent),
-                      minHeight: 8,
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        todayQueue.isNotEmpty
-                            ? 'Kutayotgan kartochkalar: ${todayQueue.length} ta'
-                            : 'Bugungi hamma kartochkalar takrorlandi! 🌟',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Theme.of(context).textTheme.bodySmall?.color,
-                        ),
-                      ),
-                      if (todayQueue.isNotEmpty)
-                        TextButton(
-                          onPressed: () {
-                            if (onNavigateTab != null) {
-                              onNavigateTab!(1); // Review tabiga o'tish
-                            } else {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ReviewScreen(store: store),
-                                ),
-                              );
-                            }
-                          },
-                          child: const Text('Boshlash →', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // 4. Fanlar bo'yicha o'zlashtirish va haftalik maqsadlar
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Fanlar progressi',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => SubjectsScreen(store: store)),
-                    );
-                  },
-                  child: const Text('Barchasi'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            ...store.subjects.where((s) => s.status == 'active').take(4).map((subj) {
-              final hours = (subj.totalSeconds / 3600).toStringAsFixed(1);
-              final color = _parseColor(subj.color);
-              final cardCount = store.cards.where((c) => c.subjectId == subj.id).length;
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardTheme.color ?? Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.line),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 18),
+                    // O'ng tomondagi matnlar va tugma
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            subj.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            remainingMins > 0
+                                ? 'Maqsadgacha $remainingMins daqiqa qoldi.'
+                                : 'Bugungi maqsad bajarildi! 🎉',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              color: AppTheme.grey,
+                              fontWeight: FontWeight.w500,
+                              height: 1.3,
+                            ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$cardCount kartochka • Maqsad: ${subj.weeklyGoalMin} daq/hafta',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).textTheme.bodySmall?.color,
+                          const SizedBox(height: 8),
+                          // Streak nishoni
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.amberBg,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '$streakDays kun ketma-ket',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF965C13),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          // Boshlash tugmasi
+                          GestureDetector(
+                            onTap: () {
+                              if (onNavigateTab != null) {
+                                onNavigateTab!(2);
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => TimerScreen(store: store, timerService: timerService),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: AppTheme.accent,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Boshlash',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Text(
-                      '$hours s',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // 3. 2-Karta: Takrorlash nishoni (14 ta kartochka)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: AppTheme.cardDecoration,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppTheme.mintBg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.psychology_outlined, color: AppTheme.accent, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$cardQueueCount ta kartochka',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: AppTheme.ink,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Takrorlash vaqti keldi',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: AppTheme.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        if (onNavigateTab != null) {
+                          onNavigateTab!(1);
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReviewScreen(store: store),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.mintBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Boshlash',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: AppTheme.accent,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              );
-            }),
+              ),
+              const SizedBox(height: 14),
 
-            const SizedBox(height: 16),
+              // 4. 3-Karta: Bugungi sessiyalar va inline Kunni yakunlash
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: AppTheme.cardDecoration,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'BUGUNGI SESSIYALAR',
+                      style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey),
+                    ),
+                    const SizedBox(height: 16),
 
-            // 5. Life Detective tezkor kiritish bloki (5.10)
-            _buildLifeDetectiveCard(context),
-            const SizedBox(height: 30),
-          ],
+                    // Sessiya 1: Kiberxavfsizlik
+                    _buildTodaySessionItem(
+                      icon: Icons.shield_outlined,
+                      iconBg: AppTheme.blueBg,
+                      iconColor: const Color(0xFF3E5FCC),
+                      title: 'Kiberxavfsizlik',
+                      duration: '1:12',
+                    ),
+                    const Divider(color: AppTheme.line, height: 20),
+
+                    // Sessiya 2: Ingliz tili
+                    _buildTodaySessionItem(
+                      icon: Icons.language_outlined,
+                      iconBg: AppTheme.mintBg,
+                      iconColor: AppTheme.accent,
+                      title: 'Ingliz tili',
+                      duration: '0:45',
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Inline Kunni yakunlash qutisi
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF7F6F2),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFEBE8E1)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Eslatildi: sessiyalarni keyinroq yakunlashingiz mumkin.")),
+                                );
+                              },
+                              child: Container(
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: AppTheme.cardBorder),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'Keyinroq',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.ink,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 2,
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => NazarScreen(store: store)),
+                                );
+                              },
+                              child: Container(
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.accent,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'Kunni yakunlash',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Sessiya 3: Flutter
+                    _buildTodaySessionItem(
+                      icon: Icons.code_rounded,
+                      iconBg: const Color(0xFFFDF0E2),
+                      iconColor: const Color(0xFFB4690E),
+                      title: 'Flutter',
+                      duration: '0:45',
+                    ),
+                    const Divider(color: AppTheme.line, height: 22),
+
+                    // Butun tarix havolasi
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => HistoryScreen(store: store)),
+                        );
+                      },
+                      child: Text(
+                        'Butun tarix',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.grey,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // 5. 4-Karta: Bu hafta (haftalik bar chart)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: AppTheme.cardDecoration,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'BU HAFTA',
+                          style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey),
+                        ),
+                        Text(
+                          '14 s 20 daq',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            color: AppTheme.grey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    // 7 ta bar (D, S, C, P, J, S, Y)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        _buildWeekBar(label: 'D', height: 42, color: AppTheme.accent),
+                        _buildWeekBar(label: 'S', height: 56, color: AppTheme.accent),
+                        _buildWeekBar(label: 'C', height: 26, color: AppTheme.accent),
+                        _buildWeekBar(label: 'P', height: 56, color: AppTheme.accent),
+                        _buildWeekBar(label: 'J', height: 46, color: const Color(0xFFB06A12)), // Amber
+                        _buildWeekBar(label: 'S', height: 18, color: AppTheme.accent),
+                        _buildWeekBar(label: 'Y', height: 38, color: const Color(0xFF8BAC9A)), // Sage
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // 6. 5-Karta: Qorong'i "Kunni yakunlash" kartochkasi (Nazar moduli)
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => NazarScreen(store: store)),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppTheme.darkCard,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF324039),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.nightlight_round, color: Colors.white, size: 24),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Kunni yakunlash',
+                              style: GoogleFonts.newsreader(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "Va'da + ikki savol · 30 soniya",
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: const Color(0xFF9AA59F),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildLifeDetectiveCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.ink.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.line),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.line),
-            ),
-            child: const Icon(Icons.insights, color: AppTheme.ink, size: 24),
+  Widget _buildTodaySessionItem({
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+    required String title,
+    required String duration,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: iconBg,
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Life Detective',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                Text(
-                  'Bugungi uyqu, kayfiyat va sportni belgilang (15 soniya)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).textTheme.bodySmall?.color,
-                  ),
-                ),
-              ],
+          child: Icon(icon, color: iconColor, size: 22),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.ink,
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.arrow_forward_ios, size: 16),
-            onPressed: () => _showLifeDetectiveDialog(context),
+        ),
+        Text(
+          duration,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.ink,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  void _showLifeDetectiveDialog(BuildContext context) {
-    double sleep = 7.5;
-    int mood = 4;
-    bool exercise = true;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Bugungi kun koʻrsatkichlari',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Oʻqish samaradorligingiz bilan bogʻliqlikni topish uchun xizmat qiladi.',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                  ),
-                  const SizedBox(height: 20),
-                  // Uyqu
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Tungi uyqu:', style: TextStyle(fontWeight: FontWeight.w600)),
-                      Text('${sleep.toStringAsFixed(1)} soat', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent)),
-                    ],
-                  ),
-                  Slider(
-                    value: sleep,
-                    min: 3.0,
-                    max: 12.0,
-                    divisions: 18,
-                    activeColor: AppTheme.accent,
-                    onChanged: (val) => setState(() => sleep = val),
-                  ),
-                  const SizedBox(height: 12),
-                  // Kayfiyat
-                  const Text('Bugungi kayfiyat:', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      for (int i = 1; i <= 5; i++)
-                        GestureDetector(
-                          onTap: () => setState(() => mood = i),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: mood == i ? AppTheme.accent.withOpacity(0.15) : Colors.transparent,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: mood == i ? AppTheme.accent : Colors.transparent, width: 2),
-                            ),
-                            child: Text(
-                              ['😫', '😕', '😐', '🙂', '😄'][i - 1],
-                              style: const TextStyle(fontSize: 26),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  // Sport
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Jismoniy mashq / Sport:', style: TextStyle(fontWeight: FontWeight.w600)),
-                      Switch(
-                        value: exercise,
-                        activeColor: AppTheme.accent,
-                        onChanged: (val) => setState(() => exercise = val),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.accent,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: () async {
-                        await store.saveLifeDetective(
-                          sleepHours: sleep,
-                          mood: mood,
-                          exercise: exercise ? 1 : 0,
-                        );
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Koʻrsatkichlar saqlandi!')),
-                        );
-                      },
-                      child: const Text('Saqlash', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+  Widget _buildWeekBar({
+    required String label,
+    required double height,
+    required Color color,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: height,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.grey,
+          ),
+        ),
+      ],
     );
-  }
-
-  Color _parseColor(String? hexString) {
-    if (hexString == null || hexString.isEmpty) return AppTheme.accent;
-    try {
-      final buffer = StringBuffer();
-      if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
-      buffer.write(hexString.replaceFirst('#', ''));
-      return Color(int.parse(buffer.toString(), radix: 16));
-    } catch (_) {
-      return AppTheme.accent;
-    }
   }
 }

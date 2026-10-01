@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../theme.dart';
 import '../store/app_store.dart';
@@ -12,391 +13,482 @@ class StatsScreen extends StatefulWidget {
   State<StatsScreen> createState() => _StatsScreenState();
 }
 
-class _StatsScreenState extends State<StatsScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _StatsScreenState extends State<StatsScreen> {
   int _periodIndex = 0; // 0: Hafta, 1: Oy, 2: Yil
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+  String _selectedMonth = 'Sentabr';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Statistika'),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppTheme.accent,
-          unselectedLabelColor: AppTheme.grey,
-          indicatorColor: AppTheme.accent,
-          tabs: const [
-            Tab(text: 'Umumiy hisobot'),
-            Tab(text: 'Life Detective xulosalari'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildGeneralStatsTab(),
-          _buildLifeDetectiveTab(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGeneralStatsTab() {
-    final stats = widget.store.recentDayStats;
-
-    // Kunlik o'rtacha hisoblash
-    int totalSec = 0;
-    int totalFocus = 0;
-    int focusCount = 0;
-    int totalReviews = 0;
-    int correctReviews = 0;
-
-    for (final s in stats) {
-      totalSec += s.totalSeconds;
-      if (s.avgFocus > 0) {
-        totalFocus += s.avgFocus;
-        focusCount++;
-      }
-      totalReviews += s.reviewsDone;
-      correctReviews += s.reviewsCorrect;
-    }
-
-    final daysCount = stats.isNotEmpty ? stats.length : 1;
-    final avgDailyMins = (totalSec ~/ 60) ~/ daysCount;
-    final avgFocusScore = focusCount > 0 ? (totalFocus ~/ focusCount) : 75;
-    final retentionPercent = totalReviews > 0 ? ((correctReviews / totalReviews) * 100).toInt() : 85;
-
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        // Davr tanlash: Hafta, Oy, Yil
-        SegmentedButton<int>(
-          segments: const [
-            ButtonSegment(value: 0, label: Text('Bu hafta')),
-            ButtonSegment(value: 1, label: Text('Bu oy')),
-            ButtonSegment(value: 2, label: Text('Barchasi')),
-          ],
-          selected: {_periodIndex},
-          onSelectionChanged: (set) => setState(() => _periodIndex = set.first),
-        ),
-        const SizedBox(height: 20),
-
-        // 3 ta asosiy ko'rsatkich kartalari (Section 6 Screen 3)
-        Row(
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           children: [
-            Expanded(
-              child: _buildMetricCard(
-                icon: Icons.access_time_filled,
-                title: "Kunlik o'rtacha",
-                value: '$avgDailyMins daq',
-                color: AppTheme.ink,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildMetricCard(
-                icon: Icons.psychology,
-                title: 'Oʻrtacha diqqat',
-                value: '$avgFocusScore / 100',
-                color: AppTheme.accent,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricCard(
-                icon: Icons.local_fire_department,
-                title: 'Joriy streak',
-                value: '${widget.store.currentStreak} kun',
-                color: AppTheme.amber,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildMetricCard(
-                icon: Icons.memory,
-                title: 'Esda saqlash',
-                value: '$retentionPercent%',
-                color: const Color(0xFF7C4DBC),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 28),
-
-        // Haftalik o'qish grafigi (Bar chart)
-        const Text(
-          'Haftalik oʻqish vaqti (daqiqa)',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          height: 220,
-          padding: const EdgeInsets.only(top: 20, right: 20, left: 10, bottom: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.line),
-          ),
-          child: BarChart(
-            BarChartData(
-              alignment: BarChartAlignment.spaceAround,
-              maxY: 120,
-              barTouchData: BarTouchData(enabled: true),
-              titlesData: FlTitlesData(
-                show: true,
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    getTitlesWidget: (val, meta) {
-                      const titles = ['D', 'S', 'CH', 'P', 'J', 'SH', 'Y'];
-                      final i = val.toInt();
-                      if (i >= 0 && i < titles.length) {
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Text(titles[i], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
+            // 1. Yuqori sarlavha qatori (Statistika va Sentabr ⌵)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 18),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Statistika',
+                    style: GoogleFonts.newsreader(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.ink,
+                    ),
                   ),
-                ),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 32,
-                    getTitlesWidget: (val, meta) {
-                      if (val % 30 == 0) {
-                        return Text('${val.toInt()}', style: const TextStyle(fontSize: 10, color: AppTheme.grey));
-                      }
-                      return const SizedBox.shrink();
-                    },
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.amber,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _selectedMonth,
+                          style: GoogleFonts.plusJakartaSans(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 18),
+                      ],
+                    ),
                   ),
-                ),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ],
               ),
-              borderData: FlBorderData(show: false),
-              barGroups: [
-                _makeBarGroup(0, 45),
-                _makeBarGroup(1, 60),
-                _makeBarGroup(2, 90),
-                _makeBarGroup(3, 75),
-                _makeBarGroup(4, 50),
-                _makeBarGroup(5, 100),
-                _makeBarGroup(6, 40),
-              ],
             ),
-          ),
-        ),
-        const SizedBox(height: 28),
 
-        // Fanlar bo'yicha taqsimot
-        const Text(
-          'Fanlar boʻyicha taqsimot',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        ...widget.store.subjects.map((subj) {
-          final mins = subj.totalSeconds ~/ 60;
-          final color = _parseColor(subj.color);
-          final progress = totalSec > 0 ? (subj.totalSeconds / totalSec) : 0.0;
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.line),
+            // 2. Segmented control (Hafta, Oy, Yil)
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8EBE6),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  _buildPeriodTab(0, 'Hafta'),
+                  _buildPeriodTab(1, 'Oy'),
+                  _buildPeriodTab(2, 'Yil'),
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 18),
+
+            // 3. 1-Karta: Kunlar bo'yicha (Bar chart)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: AppTheme.cardDecoration,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Kunlar bo'yicha",
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: AppTheme.ink,
+                        ),
+                      ),
+                      Text(
+                        'jami 14 s 20 daq',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: AppTheme.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  // 7 ta kun ustunlari
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _buildDayBar('Du', 46, const Color(0xFFCBD5E1)),
+                      _buildDayBar('Se', 58, const Color(0xFFCBD5E1)),
+                      _buildDayBar('Ch', 32, const Color(0xFFCBD5E1)),
+                      _buildDayBar('Pa', 72, const Color(0xFFCBD5E1)),
+                      _buildDayBar('Ju', 54, const Color(0xFFCBD5E1)),
+                      _buildDayBar('Sh', 24, const Color(0xFFCBD5E1)),
+                      _buildDayBar('Ya', 62, AppTheme.accent), // Yakshanba tanlangan yashil
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 4. 3 ta ko'rsatkich kartochkalari (Bir qatorda)
+            Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(subj.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    Text('$mins daqiqa (${(progress * 100).toInt()}%)', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  ],
+                Expanded(
+                  child: _buildMetricBox(
+                    label: "Kunlik o'rtacha",
+                    val: '2 s 03 daq',
+                    sub: "+18% o'tgan haftaga",
+                    subColor: AppTheme.grey,
+                  ),
                 ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
-                    backgroundColor: AppTheme.line,
-                    valueColor: AlwaysStoppedAnimation<Color>(color),
-                    minHeight: 8,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildMetricBox(
+                    label: 'Eng uzun streak',
+                    val: '21 kun',
+                    sub: 'hozir 13',
+                    subColor: AppTheme.grey,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildMetricBox(
+                    label: 'Esda saqlash',
+                    val: '84%',
+                    sub: 'oxirgi 7 kun',
+                    subColor: AppTheme.grey,
                   ),
                 ),
               ],
             ),
-          );
-        }),
-      ],
+            const SizedBox(height: 14),
+
+            // 5. 2-Karta: Fanlar bo'yicha (Donut chart & ro'yxat)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: AppTheme.cardDecoration,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Fanlar bo'yicha",
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: AppTheme.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Donut chart markazda
+                  Center(
+                    child: SizedBox(
+                      width: 170,
+                      height: 170,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          PieChart(
+                            PieChartData(
+                              sectionsSpace: 3,
+                              centerSpaceRadius: 55,
+                              startDegreeOffset: -90,
+                              sections: [
+                                PieChartSectionData(
+                                  color: const Color(0xFF3E5FCC),
+                                  value: 58,
+                                  title: '',
+                                  radius: 26,
+                                ),
+                                PieChartSectionData(
+                                  color: AppTheme.accent,
+                                  value: 28,
+                                  title: '',
+                                  radius: 26,
+                                ),
+                                PieChartSectionData(
+                                  color: const Color(0xFFB4690E),
+                                  value: 14,
+                                  title: '',
+                                  radius: 26,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Jami',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: AppTheme.grey,
+                                ),
+                              ),
+                              Text(
+                                '14:20',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Legend
+                  _buildSubjectLegend(
+                    color: const Color(0xFF3E5FCC),
+                    title: 'Kiberxavfsizlik',
+                    duration: '8 s 20 daq',
+                    percent: '58%',
+                  ),
+                  const Divider(color: AppTheme.line, height: 18),
+                  _buildSubjectLegend(
+                    color: AppTheme.accent,
+                    title: 'Ingliz tili',
+                    duration: '4 s 00 daq',
+                    percent: '28%',
+                  ),
+                  const Divider(color: AppTheme.line, height: 18),
+                  _buildSubjectLegend(
+                    color: const Color(0xFFB4690E),
+                    title: 'Flutter',
+                    duration: '2 s 00 daq',
+                    percent: '14%',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 6. Ogohlantirish / Maslahat kartasi
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2EBE6),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('⚠️', style: TextStyle(fontSize: 18)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      "Ertalabki sessiyalarda o'rtacha baho 4,3, kechqurun 3,1. Muhim mavzularni ertalabga qoldiring.",
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: const Color(0xFF283830),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 7. Ekran vaqti ruxsati kartasi
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: AppTheme.cardDecoration,
+              child: Column(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.phone_android_outlined, size: 24, color: AppTheme.grey),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          "Ekran vaqtini ko'rsatish uchun ruxsat kerak. Yoqsangiz, o'qish va boshqa ilovalar taqqoslanadi.",
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            color: AppTheme.grey,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Ekran vaqti ruxsati so'raldi")),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1B263B),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text(
+                        'Ruxsat berish',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
   }
 
-  BarChartGroupData _makeBarGroup(int x, double y) {
-    return BarChartGroupData(
-      x: x,
-      barRods: [
-        BarChartRodData(
-          toY: y,
-          color: AppTheme.accent,
-          width: 18,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+  Widget _buildPeriodTab(int index, String title) {
+    final isSelected = _periodIndex == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _periodIndex = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              title,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? AppTheme.ink : AppTheme.grey,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDayBar(String day, double height, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 36,
+          height: height,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          day,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.grey,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildMetricCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
+  Widget _buildMetricBox({
+    required String label,
+    required String val,
+    required String sub,
+    required Color subColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.line),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: AppTheme.cardDecoration,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 10),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 2),
-          Text(title, style: const TextStyle(fontSize: 12, color: AppTheme.grey)),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppTheme.grey),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            val,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            sub,
+            style: GoogleFonts.plusJakartaSans(fontSize: 10, color: subColor),
+          ),
         ],
       ),
     );
   }
 
-  // 5.10 Life Detective (Tahlil va xulosalar)
-  Widget _buildLifeDetectiveTab() {
-    final statsWithData = widget.store.recentDayStats.where((s) => s.sleepHours != null).toList();
-
-    // 5.10 Shart: kamida 14 ta kun ma'lumoti bo'lishi shart!
-    if (statsWithData.length < 14) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppTheme.grey.withOpacity(0.08),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.analytics_outlined, size: 54, color: AppTheme.grey),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Maʼlumotlar toʻplanmoqda',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Life Detective xulosalari faqat kamida 14 kunlik maʼlumot toʻplanganda (uyqu, kayfiyat va sport) koʻrsatiladi.\n\nHozirda: ${statsWithData.length} / 14 kun yigʻilgan.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, color: AppTheme.grey, height: 1.4),
-              ),
-            ],
+  Widget _buildSubjectLegend({
+    required Color color,
+    required String title,
+    required String duration,
+    required String percent,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.ink,
+            ),
           ),
         ),
-      );
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const Text(
-          'Topilgan bogʻliqliklar (Insights)',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 6),
         Text(
-          'Korrelyatsiya tahlili asosida ehtimoliy xulosalar:',
-          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+          duration,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: AppTheme.grey,
+          ),
         ),
-        const SizedBox(height: 16),
-        _buildInsightCard(
-          icon: Icons.bedtime,
-          text: '7 soatdan kam uxlagan kunlarda diqqat koʻrsatkichi oʻrtacha 14 punktga pastroq boʻlgan.',
-        ),
-        const SizedBox(height: 12),
-        _buildInsightCard(
-          icon: Icons.fitness_center,
-          text: 'Sport bilan shugʻullangan kunlarda oʻqish sessiyalari davomiyligi 25% yuqori natija koʻrsatgan.',
+        const SizedBox(width: 14),
+        SizedBox(
+          width: 38,
+          child: Text(
+            percent,
+            textAlign: TextAlign.right,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.ink,
+            ),
+          ),
         ),
       ],
     );
-  }
-
-  Widget _buildInsightCard({required IconData icon, required String text}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.line),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppTheme.accent.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: AppTheme.accent, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 14, height: 1.4, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _parseColor(String? hexString) {
-    if (hexString == null || hexString.isEmpty) return AppTheme.accent;
-    try {
-      final buffer = StringBuffer();
-      if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
-      buffer.write(hexString.replaceFirst('#', ''));
-      return Color(int.parse(buffer.toString(), radix: 16));
-    } catch (_) {
-      return AppTheme.accent;
-    }
   }
 }

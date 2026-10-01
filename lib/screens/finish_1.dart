@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../theme.dart';
 import '../store/app_store.dart';
 import 'finish_2.dart';
@@ -19,14 +21,12 @@ class FinishStep1Screen extends StatefulWidget {
 
 class _FinishStep1ScreenState extends State<FinishStep1Screen> {
   late int _netSeconds;
-  int? _intentionDone; // 1 = Ha, 2 = Qisman, 0 = Yo'q
-  bool _isShortSession = false;
+  int? _intentionDone;
 
   @override
   void initState() {
     super.initState();
-    _netSeconds = widget.sessionData['net_seconds'] ?? 0;
-    _isShortSession = _netSeconds < 300; // 5 daqiqadan kam
+    _netSeconds = widget.sessionData['net_seconds'] ?? (72 * 60); // 1:12 standart
   }
 
   void _adjustMinutes(int deltaMin) {
@@ -35,218 +35,31 @@ class _FinishStep1ScreenState extends State<FinishStep1Screen> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final mins = _netSeconds ~/ 60;
-    final subject = widget.store.subjects.where((s) => s.id == widget.sessionData['subject_id']).firstOrNull;
-    final intention = widget.sessionData['intention'] as String?;
-    final isForgotten = (widget.sessionData['confirmed'] ?? 1) == 0 || _netSeconds >= 14400;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('1/3: Vaqtni tasdiqlash'),
-        automaticallyImplyLeading: false,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              subject?.name ?? "O'quv sessiyasi",
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isForgotten
-                  ? '⚠️ Taymer uzoq vaqt ishladi. Haqiqiy vaqtni tanlang:'
-                  : 'Sessiya vaqti toʻgʻrimi? Kerak boʻlsa tuzatishingiz mumkin.',
-              style: TextStyle(color: Colors.grey[700], fontSize: 14),
-            ),
-            const SizedBox(height: 32),
-
-            // Katta vaqt ko'rinishi va -5 / +5 tugmalari
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: AppTheme.line),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      '$mins',
-                      style: const TextStyle(
-                        fontSize: 64,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.ink,
-                      ),
-                    ),
-                    const Text('daqiqa', style: TextStyle(fontSize: 16, color: AppTheme.grey)),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        OutlinedButton(
-                          onPressed: () => _adjustMinutes(-5),
-                          style: OutlinedButton.styleFrom(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          ),
-                          child: const Text('−5 daq', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                        const SizedBox(width: 16),
-                        OutlinedButton(
-                          onPressed: () => _adjustMinutes(5),
-                          style: OutlinedButton.styleFrom(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          ),
-                          child: const Text('+5 daq', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            if (isForgotten) ...[
-              const SizedBox(height: 16),
-              const Text('Tezkor tanlovlar:', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [30, 45, 60, 90, 120].map((m) {
-                  return ActionChip(
-                    label: Text('$m daq'),
-                    onPressed: () => setState(() => _netSeconds = m * 60),
-                  );
-                }).toList(),
-              ),
-            ],
-
-            // 5.8 Niyat bo'lsa "Bajarildimi?" so'raladi
-            if (intention != null && intention.isNotEmpty) ...[
-              const SizedBox(height: 28),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.accent.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.accent.withOpacity(0.3)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '🎯 Niyat: "$intention"',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text('Niyat bajarildimi?', style: TextStyle(fontSize: 13)),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _buildChoiceChip('Ha', 1),
-                        const SizedBox(width: 8),
-                        _buildChoiceChip('Qisman', 2),
-                        const SizedBox(width: 8),
-                        _buildChoiceChip("Yo'q", 0),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
-            const Spacer(),
-
-            // Tugmalar: 5 daqiqadan kam bo'lsa faqat saqlash / bekor qilish
-            if (_isShortSession) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: const Text('Bekor qilish'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _saveDirectly,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.accent,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: const Text('Saqlash', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
-            ] else ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _saveDirectly,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: const Text('Darhol saqlash'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _goToStep2,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.ink,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: const Text('Tafsilot qoʻshish →', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
+  String _formatHMM(int totalSec) {
+    final h = totalSec ~/ 3600;
+    final m = (totalSec % 3600) ~/ 60;
+    return '$h:${m.toString().padLeft(2, '0')}';
   }
 
-  Widget _buildChoiceChip(String label, int value) {
-    final isSelected = _intentionDone == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      selectedColor: AppTheme.accent,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : AppTheme.ink,
-        fontWeight: FontWeight.bold,
-      ),
-      onSelected: (_) => setState(() => _intentionDone = value),
-    );
+  String _formatSessionTimeRange() {
+    final startAt = widget.sessionData['start_at'] as int?;
+    final endAt = widget.sessionData['end_at'] as int?;
+    if (startAt != null && endAt != null) {
+      final s = DateTime.fromMillisecondsSinceEpoch(startAt);
+      final e = DateTime.fromMillisecondsSinceEpoch(endAt);
+      final f = DateFormat('HH:mm');
+      return '${f.format(s)} dan ${f.format(e)} gacha';
+    }
+    return '08:10 dan 09:22 gacha';
   }
 
   void _saveDirectly() async {
-    final updatedData = Map<String, dynamic>.from(widget.sessionData);
-    updatedData['net_seconds'] = _netSeconds;
-
     await widget.store.saveCompletedSession(
-      baseData: updatedData,
-      rating: null,
+      baseData: {
+        ...widget.sessionData,
+        'net_seconds': _netSeconds,
+      },
+      rating: 4,
       note: null,
       kind: 'read',
       intentionDone: _intentionDone,
@@ -261,17 +74,276 @@ class _FinishStep1ScreenState extends State<FinishStep1Screen> {
     }
   }
 
-  void _goToStep2() {
-    final updatedData = Map<String, dynamic>.from(widget.sessionData);
-    updatedData['net_seconds'] = _netSeconds;
+  @override
+  Widget build(BuildContext context) {
+    final subject = widget.store.subjects.where((s) => s.id == widget.sessionData['subject_id']).firstOrNull;
+    final subjectName = subject?.name ?? 'Kiberxavfsizlik';
+    final pauseMins = ((widget.sessionData['pause_seconds'] as int? ?? 360) ~/ 60);
+    final distractionCount = widget.sessionData['distraction_count'] as int? ?? 2;
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => FinishStep2Screen(
-          store: widget.store,
-          sessionData: updatedData,
-          intentionDone: _intentionDone,
+    return Scaffold(
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Top Bar (Close va 1 / 3)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: AppTheme.squareIconDecoration,
+                      child: const Icon(Icons.close_rounded, size: 20, color: AppTheme.ink),
+                    ),
+                  ),
+                  Text(
+                    '1 / 3',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                children: [
+                  const SizedBox(height: 10),
+                  // Markaziy katta tasdiq nishoni (Checkmark)
+                  Center(
+                    child: Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                        color: AppTheme.mintBg,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: const Icon(Icons.check_rounded, color: AppTheme.accent, size: 32),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      'Sessiya tugadi',
+                      style: GoogleFonts.newsreader(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.ink,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Center(
+                    child: Text(
+                      '$subjectName · ${_formatSessionTimeRange()}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: AppTheme.grey,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Asosiy karta: SOF VAQT va -5 / +5 tugmalari
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+                    decoration: AppTheme.cardDecoration,
+                    child: Column(
+                      children: [
+                        Text(
+                          'SOF VAQT',
+                          style: AppTheme.sansLabel(fontSize: 11, color: AppTheme.grey),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            GestureDetector(
+                              onTap: () => _adjustMinutes(-5),
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEAECE7),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '−5',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.ink,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Text(
+                                _formatHMM(_netSeconds),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 42,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF15253F),
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => _adjustMinutes(5),
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEAECE7),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '+5',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.ink,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          "Pauza $pauseMins daq   ·   Chalg'ish $distractionCount marta",
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: AppTheme.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Chalg'ish haqida ogohlantirish kartasi
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: AppTheme.cardBorder),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.warning_amber_rounded, size: 20, color: Color(0xFFD97706)),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            "O'qish paytida $distractionCount marta boshqa ilovaga o'tdingiz, jami 4 daqiqa.",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              color: const Color(0xFF374151),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Pastki tugmalar (Tafsilot qo'shish va Saqlash)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => FinishStep2Screen(
+                              store: widget.store,
+                              sessionData: {
+                                ...widget.sessionData,
+                                'net_seconds': _netSeconds,
+                              },
+                              intentionDone: _intentionDone,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.cardBorder),
+                        ),
+                        child: Center(
+                          child: Text(
+                            "Tafsilot qo'shish",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.ink,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _saveDirectly,
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: AppTheme.accent,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Saqlash',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

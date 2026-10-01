@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../store/app_store.dart';
 import '../models/card.dart';
@@ -20,40 +21,24 @@ class CardEditScreen extends StatefulWidget {
 
 class _CardEditScreenState extends State<CardEditScreen> {
   final _formKey = GlobalKey<FormState>();
-  late String _type; // 'qa' or 'scenario'
+  int _tabIndex = 0; // 0: Savol - javob, 1: Bo'sh joy
   late int _subjectId;
   late TextEditingController _questionController;
   late TextEditingController _answerController;
   late TextEditingController _hintController;
 
-  // Scenario options (3 ta boshlang'ich variant)
-  List<Map<String, dynamic>> _scenarioOptions = [];
-
   @override
   void initState() {
     super.initState();
     final c = widget.cardToEdit;
-    _type = c?.type ?? 'qa';
     _subjectId = c?.subjectId ?? (widget.store.subjects.isNotEmpty ? widget.store.subjects.first.id : 1);
-    _questionController = TextEditingController(text: c?.question ?? '');
-    _answerController = TextEditingController(text: c?.answer ?? '');
-    _hintController = TextEditingController(text: c?.hint ?? '');
-
-    if (c != null && c.options != null && c.options!.isNotEmpty) {
-      _scenarioOptions = c.options!.map((o) {
-        return {
-          'text': TextEditingController(text: o.text),
-          'is_correct': o.isCorrect,
-          'feedback': TextEditingController(text: o.feedback),
-        };
-      }).toList();
-    } else {
-      _scenarioOptions = [
-        {'text': TextEditingController(), 'is_correct': false, 'feedback': TextEditingController()},
-        {'text': TextEditingController(), 'is_correct': true, 'feedback': TextEditingController()},
-        {'text': TextEditingController(), 'is_correct': false, 'feedback': TextEditingController()},
-      ];
-    }
+    _questionController = TextEditingController(
+      text: c?.question ?? "Nmap'da SYN skanerlash bayrog'i qaysi?",
+    );
+    _answerController = TextEditingController(text: c?.answer ?? "-sS");
+    _hintController = TextEditingController(
+      text: c?.hint ?? "Yarim ochiq skanerlash, logga tushmaydi",
+    );
   }
 
   @override
@@ -61,10 +46,6 @@ class _CardEditScreenState extends State<CardEditScreen> {
     _questionController.dispose();
     _answerController.dispose();
     _hintController.dispose();
-    for (final opt in _scenarioOptions) {
-      (opt['text'] as TextEditingController).dispose();
-      (opt['feedback'] as TextEditingController).dispose();
-    }
     super.dispose();
   }
 
@@ -74,22 +55,11 @@ class _CardEditScreenState extends State<CardEditScreen> {
     final today = SrsScheduler.getDayKey();
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    List<Map<String, dynamic>>? optionsToSave;
-    if (_type == 'scenario') {
-      optionsToSave = _scenarioOptions.map((opt) {
-        return {
-          'text': (opt['text'] as TextEditingController).text.trim(),
-          'is_correct': opt['is_correct'] as bool,
-          'feedback': (opt['feedback'] as TextEditingController).text.trim(),
-        };
-      }).toList();
-    }
-
     final card = FlashCard(
       id: widget.cardToEdit?.id ?? 0,
       subjectId: _subjectId,
       sessionId: widget.cardToEdit?.sessionId,
-      type: _type,
+      type: _tabIndex == 1 ? 'cloze' : 'qa',
       question: _questionController.text.trim(),
       answer: _answerController.text.trim(),
       hint: _hintController.text.trim().isNotEmpty ? _hintController.text.trim() : null,
@@ -100,263 +70,301 @@ class _CardEditScreenState extends State<CardEditScreen> {
       correctCount: widget.cardToEdit?.correctCount ?? 0,
       wrongCount: widget.cardToEdit?.wrongCount ?? 0,
       streakCorrect: widget.cardToEdit?.streakCorrect ?? 0,
-      status: widget.cardToEdit?.status ?? 'active',
+      status: 'active',
       difficult: widget.cardToEdit?.difficult ?? false,
       createdAt: widget.cardToEdit?.createdAt ?? now,
     );
 
-    await widget.store.saveCard(card: card, scenarioOptions: optionsToSave);
+    await widget.store.saveCard(card: card);
 
     if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.cardToEdit != null ? 'Kartochka yangilandi!' : 'Yangi kartochka yaratildi!')),
-      );
-    }
-  }
-
-  void _delete() async {
-    if (widget.cardToEdit == null) return;
-    await widget.store.deleteCard(widget.cardToEdit!.id);
-    if (mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kartochka oʻchirildi')),
+        SnackBar(content: Text(widget.cardToEdit != null ? 'Kartochka yangilandi!' : 'Yangi kartochka qoʻshildi!')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = widget.cardToEdit != null;
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isEditing ? 'Kartochkani tahrirlash' : 'Yangi kartochka'),
-        actions: [
-          if (isEditing)
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: AppTheme.red),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Oʻchirilsinmi?'),
-                    content: const Text('Bu kartochkani qaytarib boʻlmaydi.'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Yoʻq')),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _delete();
-                        },
-                        child: const Text('Oʻchirish', style: TextStyle(color: AppTheme.red)),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            // Tur tanlash (QA / Scenario)
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'qa', label: Text('Oddiy (QA)')),
-                ButtonSegment(value: 'scenario', label: Text('Vaziyat (Scenario)')),
-              ],
-              selected: {_type},
-              onSelectionChanged: (set) => setState(() => _type = set.first),
-            ),
-            const SizedBox(height: 20),
-
-            // Fan tanlash
-            const Text('Fan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.line),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  value: _subjectId,
-                  isExpanded: true,
-                  items: widget.store.subjects.where((s) => s.status == 'active').map((s) {
-                    return DropdownMenuItem<int>(
-                      value: s.id,
-                      child: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) setState(() => _subjectId = val);
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Savol / Kontekst
-            TextFormField(
-              controller: _questionController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: _type == 'scenario' ? 'Vaziyat konteksti (Savol)' : 'Savol',
-                hintText: _type == 'scenario'
-                    ? 'Masalan: Pentestda 12 ta zaiflik topdingiz, 2 soat qoldi...'
-                    : 'Masalan: SYN skanerlash bayrogʻi qaysi?',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              validator: (val) => val == null || val.trim().isEmpty ? 'Savol boʻsh boʻlishi mumkin emas' : null,
-            ),
-            const SizedBox(height: 16),
-
-            // 5.11 Sifat: bitta kartochka — bitta fakt ogohlantirishi
-            if (_type == 'qa') ...[
-              TextFormField(
-                controller: _answerController,
-                maxLines: 3,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: 'Javob',
-                  hintText: 'Qisqa va aniq fakt...',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                validator: (val) => val == null || val.trim().isEmpty ? 'Javob boʻsh boʻlishi mumkin emas' : null,
-              ),
-              if (_answerController.text.length > 100) ...[
-                const SizedBox(height: 6),
-                const Row(
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              // Top Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Row(
                   children: [
-                    Icon(Icons.info_outline, size: 16, color: AppTheme.amber),
-                    SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Ogohlantirish: Javob 100 belgidan uzun. "Bitta kartochka — bitta fakt" qoidasiga amal qiling.',
-                        style: TextStyle(fontSize: 12, color: AppTheme.amber, fontWeight: FontWeight.bold),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: AppTheme.squareIconDecoration,
+                        child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppTheme.ink),
                       ),
                     ),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          widget.cardToEdit != null ? 'Kartochkani tahrirlash' : 'Yangi kartochka',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.ink,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 44),
                   ],
                 ),
-              ],
-            ] else ...[
-              // Vaziyat uchun umumiy sabab / to'g'ri xulosa
-              TextFormField(
-                controller: _answerController,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  labelText: 'Toʻgʻri qaror sababi (Qisqacha)',
-                  hintText: 'Nima uchun bu qaror toʻgʻri va eng samarali?',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                validator: (val) => val == null || val.trim().isEmpty ? 'Sabab kiritilishi kerak' : null,
               ),
-              const SizedBox(height: 20),
 
-              // Scenario variantlari (5.6 bo'lim talabi)
-              const Text('Variantlar va ularning izohi (Feedback):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-              const SizedBox(height: 10),
-
-              ...List.generate(_scenarioOptions.length, (index) {
-                final opt = _scenarioOptions[index];
-                final textCtrl = opt['text'] as TextEditingController;
-                final feedbackCtrl = opt['feedback'] as TextEditingController;
-                final isCorrect = opt['is_correct'] as bool;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: isCorrect ? AppTheme.accent.withOpacity(0.06) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: isCorrect ? AppTheme.accent : AppTheme.line),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  children: [
+                    // Segmented control (Savol - javob va Bo'sh joy)
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8EBE6),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
                         children: [
-                          Radio<bool>(
-                            value: true,
-                            groupValue: isCorrect,
-                            activeColor: AppTheme.accent,
-                            onChanged: (_) {
-                              setState(() {
-                                for (final o in _scenarioOptions) {
-                                  o['is_correct'] = false;
-                                }
-                                opt['is_correct'] = true;
-                              });
-                            },
+                          _buildTypeTab(0, 'Savol - javob'),
+                          _buildTypeTab(1, "Bo'sh joy"),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Fan
+                    Text('Fan', style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey)),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.cardBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: AppTheme.blueBg,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.shield_outlined, size: 20, color: Color(0xFF3E5FCC)),
                           ),
-                          Text(
-                            isCorrect ? 'Toʻgʻri variant' : '${index + 1}-variant',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: isCorrect ? AppTheme.accent : AppTheme.ink),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<int>(
+                                value: _subjectId,
+                                isExpanded: true,
+                                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.grey),
+                                items: widget.store.subjects.where((s) => s.status == 'active').map((s) {
+                                  return DropdownMenuItem<int>(
+                                    value: s.id,
+                                    child: Text(
+                                      s.name,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.ink,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) setState(() => _subjectId = val);
+                                },
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                      TextField(
-                        controller: textCtrl,
-                        decoration: InputDecoration(
-                          hintText: 'Variant matni...',
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Savol
+                    Text('Savol', style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey)),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.cardBorder),
+                      ),
+                      child: TextFormField(
+                        controller: _questionController,
+                        maxLines: 3,
+                        style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppTheme.ink, height: 1.4),
+                        decoration: const InputDecoration(
+                          hintText: "Nmap'da SYN skanerlash bayrog'i qaysi?",
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(16),
+                        ),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Savol kiriting' : null,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Javob
+                    Text('Javob', style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey)),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.cardBorder),
+                      ),
+                      child: TextFormField(
+                        controller: _answerController,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.accent,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: "-sS",
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Javob kiriting' : null,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Izoh (ixtiyoriy)
+                    Text('Izoh (ixtiyoriy)', style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey)),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.cardBorder),
+                      ),
+                      child: TextFormField(
+                        controller: _hintController,
+                        maxLines: 3,
+                        style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppTheme.ink, height: 1.4),
+                        decoration: const InputDecoration(
+                          hintText: "Yarim ochiq skanerlash, logga tushmaydi",
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(16),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: feedbackCtrl,
-                        decoration: InputDecoration(
-                          hintText: 'Izoh: nega toʻgʻri yoki nega xato qaror?',
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Ma'lumot kartasi (Soat ikonka va jadval)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppTheme.cardBorder),
                       ),
-                    ],
-                  ),
-                );
-              }),
-            ],
-            const SizedBox(height: 16),
-
-            // Maslahat
-            TextFormField(
-              controller: _hintController,
-              decoration: InputDecoration(
-                labelText: 'Maslahat (Hint - ixtiyoriy)',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            SizedBox(
-              height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.accent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFFD97706)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              "Birinchi takrorlash ertaga, keyin 3, 7, 21 va 60 kundan so'ng.",
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                color: const Color(0xFF374151),
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                  ],
                 ),
-                onPressed: _save,
-                child: const Text('Saqlash', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+
+              // Saqlash tugmasi
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _save,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.accent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Text(
+                      'Saqlash',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeTab(int index, String label) {
+    final isSelected = _tabIndex == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _tabIndex = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? AppTheme.ink : AppTheme.grey,
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

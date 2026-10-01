@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../store/app_store.dart';
 import '../models/subject.dart';
@@ -21,44 +22,96 @@ class _SubjectEditScreenState extends State<SubjectEditScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _noteController;
-  late int _dailyGoalMin;
-  late int _weeklyGoalMin;
-  late Color _selectedColor;
-  late String _status;
+  late TextEditingController _weeklyGoalController;
+  late TextEditingController _dailyGoalController;
+
+  int _selectedIconIndex = 0;
+  int _selectedColorIndex = 0;
+
+  final List<IconData> _icons = [
+    Icons.shield_outlined,
+    Icons.language_outlined,
+    Icons.code_rounded,
+    Icons.menu_book_outlined,
+    Icons.adjust_rounded,
+    Icons.star_outline_rounded,
+    Icons.psychology_outlined,
+    Icons.bar_chart_rounded,
+  ];
+
+  final List<String> _iconNames = [
+    'shield',
+    'language',
+    'code',
+    'book',
+    'target',
+    'star',
+    'brain',
+    'chart',
+  ];
+
+  final List<Color> _colors = [
+    const Color(0xFF3E5FCC), // Blue
+    const Color(0xFF2E6B4E), // Green
+    const Color(0xFFB4690E), // Brown/Amber
+    const Color(0xFF7C4DBC), // Purple
+    const Color(0xFFE08A0B), // Orange
+    const Color(0xFFC4453C), // Red
+  ];
 
   @override
   void initState() {
     super.initState();
     final s = widget.subjectToEdit;
-    _nameController = TextEditingController(text: s?.name ?? '');
-    _noteController = TextEditingController(text: s?.note ?? '');
-    _dailyGoalMin = s?.dailyGoalMin ?? 45;
-    _weeklyGoalMin = s?.weeklyGoalMin ?? 300;
-    _selectedColor = s != null ? _parseColor(s.color) : AppTheme.subjectColors.first;
-    _status = s?.status ?? 'active';
+    _nameController = TextEditingController(text: s?.name ?? 'Kiberxavfsizlik');
+    _noteController = TextEditingController(text: s?.note ?? 'eJPT sertifikatiga tayyorgarlik');
+    _weeklyGoalController = TextEditingController(text: s != null ? '${s.weeklyGoalMin ~/ 60}' : '10');
+    _dailyGoalController = TextEditingController(text: s != null ? '${(s.dailyGoalMin / 60).toStringAsFixed(1).replaceAll('.', ',')}' : '1,5');
+
+    if (s != null) {
+      final idx = _iconNames.indexOf(s.icon);
+      if (idx != -1) _selectedIconIndex = idx;
+
+      for (int i = 0; i < _colors.length; i++) {
+        final hex = '#${_colors[i].value.toRadixString(16).substring(2).toUpperCase()}';
+        if (s.color.toUpperCase() == hex) {
+          _selectedColorIndex = i;
+          break;
+        }
+      }
+    }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _noteController.dispose();
+    _weeklyGoalController.dispose();
+    _dailyGoalController.dispose();
     super.dispose();
   }
 
   void _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final hexColor = '#${_selectedColor.value.toRadixString(16).substring(2).toUpperCase()}';
+    final weeklyHours = double.tryParse(_weeklyGoalController.text.replaceAll(',', '.')) ?? 10.0;
+    final dailyHours = double.tryParse(_dailyGoalController.text.replaceAll(',', '.')) ?? 1.5;
+    final weeklyMin = (weeklyHours * 60).round();
+    final dailyMin = (dailyHours * 60).round();
+
+    final selectedColor = _colors[_selectedColorIndex];
+    final hexColor = '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}';
+
     final s = Subject(
       id: widget.subjectToEdit?.id ?? 0,
       name: _nameController.text.trim(),
-      icon: 'book',
+      icon: _iconNames[_selectedIconIndex],
       color: hexColor,
-      weeklyGoalMin: _weeklyGoalMin,
-      dailyGoalMin: _dailyGoalMin,
+      weeklyGoalMin: weeklyMin,
+      dailyGoalMin: dailyMin,
       note: _noteController.text.trim().isNotEmpty ? _noteController.text.trim() : null,
       sortOrder: widget.subjectToEdit?.sortOrder ?? widget.store.subjects.length + 1,
-      status: _status,
+      status: widget.subjectToEdit?.status ?? 'active',
       totalSeconds: widget.subjectToEdit?.totalSeconds ?? 0,
       createdAt: widget.subjectToEdit?.createdAt ?? DateTime.now().millisecondsSinceEpoch,
     );
@@ -68,143 +121,301 @@ class _SubjectEditScreenState extends State<SubjectEditScreen> {
     if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.subjectToEdit != null ? 'Fan yangilandi!' : 'Yangi fan qoʻshildi!')),
+        SnackBar(content: Text(widget.subjectToEdit != null ? 'Fan yangilandi!' : 'Yangi fan saqlandi!')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentColor = _colors[_selectedColorIndex];
+    final currentIcon = _icons[_selectedIconIndex];
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.subjectToEdit != null ? 'Fanni tahrirlash' : 'Yangi fan qoʻshish'),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: 'Fan nomi',
-                hintText: 'Masalan: Kiberxavfsizlik & Pentest',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              validator: (val) => val == null || val.trim().isEmpty ? 'Iltimos nom kiriting' : null,
-            ),
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _noteController,
-              decoration: InputDecoration(
-                labelText: 'Qisqa izoh yoki maqsad',
-                hintText: 'Masalan: eJPT v2 va TryHackMe xonalari',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            const Text('Fan rangi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: AppTheme.subjectColors.map((col) {
-                final isSelected = _selectedColor.value == col.value;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedColor = col),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: col,
-                      shape: BoxShape.circle,
-                      border: isSelected ? Border.all(color: AppTheme.ink, width: 3) : null,
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              // Top Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: AppTheme.squareIconDecoration,
+                        child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppTheme.ink),
+                      ),
                     ),
-                    child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 28),
-
-            // Kunlik maqsad surgichi
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Kunlik maqsad:', style: TextStyle(fontWeight: FontWeight.w600)),
-                Text('$_dailyGoalMin daqiqa', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent)),
-              ],
-            ),
-            Slider(
-              value: _dailyGoalMin.toDouble(),
-              min: 15,
-              max: 180,
-              divisions: 11,
-              activeColor: AppTheme.accent,
-              onChanged: (val) => setState(() => _dailyGoalMin = val.toInt()),
-            ),
-            const SizedBox(height: 16),
-
-            // Haftalik maqsad surgichi
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Haftalik maqsad:', style: TextStyle(fontWeight: FontWeight.w600)),
-                Text('${_weeklyGoalMin ~/ 60} soat (${_weeklyGoalMin} daq)', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.ink)),
-              ],
-            ),
-            Slider(
-              value: _weeklyGoalMin.toDouble(),
-              min: 60,
-              max: 1200,
-              divisions: 19,
-              activeColor: AppTheme.ink,
-              onChanged: (val) => setState(() => _weeklyGoalMin = val.toInt()),
-            ),
-            const SizedBox(height: 24),
-
-            if (widget.subjectToEdit != null) ...[
-              SwitchListTile(
-                title: const Text('Faol holatda'),
-                subtitle: Text(_status == 'active' ? 'Bosh sahifada koʻrinadi' : 'Arxivlangan'),
-                value: _status == 'active',
-                activeColor: AppTheme.accent,
-                onChanged: (val) => setState(() => _status = val ? 'active' : 'archived'),
-              ),
-              const SizedBox(height: 24),
-            ],
-
-            SizedBox(
-              height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.accent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          widget.subjectToEdit != null ? 'Fanni tahrirlash' : 'Yangi fan',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.ink,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 44),
+                  ],
                 ),
-                onPressed: _save,
-                child: const Text('Saqlash', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
-            ),
-          ],
+
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  children: [
+                    // Katta ikonka va nom ko'rinishi (Preview)
+                    Center(
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: currentColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: Icon(currentIcon, size: 40, color: currentColor),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _nameController.text.isNotEmpty ? _nameController.text : 'Fan nomi',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Fan nomi
+                    Text('Fan nomi', style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey)),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.cardBorder),
+                      ),
+                      child: TextFormField(
+                        controller: _nameController,
+                        style: GoogleFonts.plusJakartaSans(fontSize: 15, color: AppTheme.ink, fontWeight: FontWeight.w500),
+                        decoration: const InputDecoration(
+                          hintText: 'Kiberxavfsizlik',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                        onChanged: (_) => setState(() {}),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Nom kiriting' : null,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Qisqa izoh
+                    Text('Qisqa izoh', style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey)),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.cardBorder),
+                      ),
+                      child: TextFormField(
+                        controller: _noteController,
+                        style: GoogleFonts.plusJakartaSans(fontSize: 15, color: AppTheme.ink),
+                        decoration: const InputDecoration(
+                          hintText: 'eJPT sertifikatiga tayyorgarlik',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Haftalik maqsad va Kunlik maqsad
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Haftalik maqsad', style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey)),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: AppTheme.cardBorder),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _weeklyGoalController,
+                                        keyboardType: TextInputType.number,
+                                        style: GoogleFonts.plusJakartaSans(fontSize: 15, color: AppTheme.ink, fontWeight: FontWeight.bold),
+                                        decoration: const InputDecoration(
+                                          border: InputBorder.none,
+                                          contentPadding: EdgeInsets.symmetric(vertical: 14),
+                                        ),
+                                      ),
+                                    ),
+                                    Text('soat', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppTheme.grey)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Kunlik maqsad', style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey)),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: AppTheme.cardBorder),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _dailyGoalController,
+                                        keyboardType: TextInputType.number,
+                                        style: GoogleFonts.plusJakartaSans(fontSize: 15, color: AppTheme.ink, fontWeight: FontWeight.bold),
+                                        decoration: const InputDecoration(
+                                          border: InputBorder.none,
+                                          contentPadding: EdgeInsets.symmetric(vertical: 14),
+                                        ),
+                                      ),
+                                    ),
+                                    Text('soat', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppTheme.grey)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Ikonka (8 ta variant)
+                    Text('Ikonka', style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey)),
+                    const SizedBox(height: 10),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 1.15,
+                      ),
+                      itemCount: _icons.length,
+                      itemBuilder: (context, index) {
+                        final isSelected = _selectedIconIndex == index;
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedIconIndex = index),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppTheme.accent : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isSelected ? AppTheme.accent : AppTheme.cardBorder,
+                                width: 1.0,
+                              ),
+                            ),
+                            child: Icon(
+                              _icons[index],
+                              color: isSelected ? Colors.white : AppTheme.ink,
+                              size: 24,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Rang (6 ta variant)
+                    Text('Rang', style: AppTheme.sansLabel(fontSize: 12, color: AppTheme.grey)),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: List.generate(_colors.length, (index) {
+                        final color = _colors[index];
+                        final isSelected = _selectedColorIndex == index;
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedColorIndex = index),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected ? color : Colors.transparent,
+                                width: 2.0,
+                              ),
+                            ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+
+              // Saqlash tugmasi
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _save,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.accent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Text(
+                      'Saqlash',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
-  }
-
-  Color _parseColor(String? hexString) {
-    if (hexString == null || hexString.isEmpty) return AppTheme.accent;
-    try {
-      final buffer = StringBuffer();
-      if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
-      buffer.write(hexString.replaceFirst('#', ''));
-      return Color(int.parse(buffer.toString(), radix: 16));
-    } catch (_) {
-      return AppTheme.accent;
-    }
   }
 }

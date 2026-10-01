@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../store/app_store.dart';
-import '../widgets/empty_state.dart';
+import '../models/card.dart';
 import 'card_edit.dart';
-import 'review.dart';
 
 class CardsScreen extends StatefulWidget {
   final AppStore store;
@@ -15,310 +15,325 @@ class CardsScreen extends StatefulWidget {
 }
 
 class _CardsScreenState extends State<CardsScreen> {
-  String _filter = 'all'; // all, new, learning, mastered, difficult
-  int? _subjectFilter;
-  String _searchQuery = '';
+  String _selectedFilter = 'Hammasi'; // Hammasi, Bugun, Qiyin, Kiberxavfsizlik
 
   @override
   Widget build(BuildContext context) {
-    final allCards = widget.store.cards;
-    final totalCards = allCards.length;
-    final masteredCards = allCards.where((c) => c.stage >= 5).length;
-    final difficultCards = allCards.where((c) => c.difficult).length;
-
-    final filtered = allCards.where((c) {
-      if (_subjectFilter != null && c.subjectId != _subjectFilter) return false;
-      if (_searchQuery.isNotEmpty) {
-        final q = _searchQuery.toLowerCase();
-        final match = c.question.toLowerCase().contains(q) || c.answer.toLowerCase().contains(q);
-        if (!match) return false;
-      }
-      switch (_filter) {
-        case 'new':
-          return c.stage == 0;
-        case 'learning':
-          return c.stage > 0 && c.stage < 5;
-        case 'mastered':
-          return c.stage >= 5;
-        case 'difficult':
-          return c.difficult;
-        default:
-          return true;
-      }
-    }).toList();
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kartochkalar kutubxonasi'),
-        actions: [
-          if (difficultCards > 0)
-            IconButton(
-              icon: const Icon(Icons.fitness_center, color: AppTheme.red),
-              tooltip: 'Qiyin kartochkalar mashqi',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ReviewScreen(store: widget.store, difficultOnly: true),
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 1. Top Bar (Back, Kartochkalar va +)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: AppTheme.squareIconDecoration,
+                      child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppTheme.ink),
+                    ),
                   ),
-                );
-              },
-            ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppTheme.accent,
-        foregroundColor: Colors.white,
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CardEditScreen(store: widget.store),
-            ),
-          );
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Kartochka qoʻshish'),
-      ),
-      body: Column(
-        children: [
-          // 3 ta ko'rsatkich (Section 6 Screen 10)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildMetricTile('Jami', '$totalCards', AppTheme.ink),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile('Oʻzlashtirilgan', '$masteredCards', AppTheme.accent),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile('Qiyin', '$difficultCards', AppTheme.red),
-                ),
-              ],
-            ),
-          ),
-
-          // Qidiruv
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-            child: TextField(
-              onChanged: (val) => setState(() => _searchQuery = val.trim()),
-              decoration: InputDecoration(
-                hintText: 'Kartochkalardan qidirish...',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppTheme.line),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppTheme.line),
-                ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'Kartochkalar',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.ink,
+                        ),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => CardEditScreen(store: widget.store)),
+                      ).then((_) => setState(() {}));
+                    },
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: AppTheme.squareIconDecoration,
+                      child: const Icon(Icons.add, size: 22, color: AppTheme.ink),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 8),
 
-          // Filtr chiplari
-          SizedBox(
-            height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              children: [
-                _buildFilterChip('Barchasi', 'all'),
-                const SizedBox(width: 8),
-                _buildFilterChip('Yangi', 'new'),
-                const SizedBox(width: 8),
-                _buildFilterChip('Oʻrganilmoqda', 'learning'),
-                const SizedBox(width: 8),
-                _buildFilterChip('Oʻzlashtirilgan', 'mastered'),
-                const SizedBox(width: 8),
-                _buildFilterChip('Qiyin', 'difficult'),
-              ],
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                children: [
+                  // 2. 3 ta ko'rsatkich kartochkalari
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMetricTile('Jami', '142', AppTheme.ink),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildMetricTile('Bugun', '14', AppTheme.accent),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildMetricTile('Qiyin', '6', const Color(0xFFC4453C)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 3. Filtr chiplari
+                  SizedBox(
+                    height: 38,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _buildFilterPill('Hammasi'),
+                        const SizedBox(width: 8),
+                        _buildFilterPill('Bugun'),
+                        const SizedBox(width: 8),
+                        _buildFilterPill('Qiyin'),
+                        const SizedBox(width: 8),
+                        _buildFilterPill('Kiberxavfsizlik'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 4. Kartochkalar ro'yxati (Maketdagi namunalar bilan to'ldirilgan)
+                  _buildFlashCardItem(
+                    question: 'Nmap: SYN skanerlash bayrog\'i?',
+                    answer: '-sS',
+                    filledDots: 3,
+                    dotColor: const Color(0xFF3E5FCC),
+                    dueText: 'Keyingi takrorlash: 4-oktabr',
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildFlashCardItem(
+                    question: 'Privilege escalation nima?',
+                    answer: 'Tizimda yuqori huquqlarga ko\'tarilish',
+                    filledDots: 2,
+                    dotColor: const Color(0xFF3E5FCC),
+                    dueText: 'Keyingi takrorlash: 29-sentabr',
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildFlashCardItem(
+                    question: '<to put off> ma\'nosi?',
+                    answer: 'kechiktirmoq, orqaga surmoq',
+                    badge: 'qiyin',
+                    filledDots: 1,
+                    dotColor: AppTheme.accent,
+                    dueText: 'Ertaga takrorlanadi',
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildFlashCardItem(
+                    question: 'SQLite\'da ustun qo\'shish buyrug\'i?',
+                    answer: 'ALTER TABLE ... ADD COLUMN',
+                    filledDots: 4,
+                    dotColor: const Color(0xFFB4690E),
+                    dueText: 'Keyingi takrorlash: 18-oktabr',
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildFlashCardItem(
+                    question: 'HTTP 403 kodi nimani bildiradi?',
+                    answer: 'Kirish taqiqlangan',
+                    filledDots: 5,
+                    dotColor: const Color(0xFF3E5FCC),
+                    dueText: 'O\'zlashtirilgan · 60 kun',
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricTile(String label, String value, Color valColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: AppTheme.cardDecoration,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              color: AppTheme.grey,
             ),
           ),
-          const SizedBox(height: 10),
-
-          // Kartochkalar ro'yxati
-          Expanded(
-            child: filtered.isEmpty
-                ? const EmptyStateWidget(
-                    icon: Icons.style_outlined,
-                    title: 'Kartochkalar topilmadi',
-                    subtitle: 'Yangi kartochka yoki vaziyat qoʻshib oʻrganishni boshlang.',
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final card = filtered[index];
-                      final subject = widget.store.subjects.where((s) => s.id == card.subjectId).firstOrNull;
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppTheme.line),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                if (subject != null) ...[
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      color: _parseColor(subject.color),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    subject.name,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppTheme.grey),
-                                  ),
-                                ],
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: card.type == 'scenario' ? AppTheme.amber.withOpacity(0.12) : AppTheme.ink.withOpacity(0.06),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    card.type == 'scenario' ? 'Vaziyat' : 'QA',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: card.type == 'scenario' ? AppTheme.amber : AppTheme.ink,
-                                    ),
-                                  ),
-                                ),
-                                if (card.difficult) ...[
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.red.withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Text('Qiyin', style: TextStyle(color: AppTheme.red, fontSize: 11, fontWeight: FontWeight.bold)),
-                                  ),
-                                ],
-                                IconButton(
-                                  icon: const Icon(Icons.edit_outlined, size: 18),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => CardEditScreen(store: widget.store, cardToEdit: card),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              card.question,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              card.answer,
-                              style: TextStyle(color: Colors.grey[700], fontSize: 13),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // Bosqich nuqtalari (0-5)
-                                Row(
-                                  children: List.generate(6, (i) {
-                                    return Container(
-                                      margin: const EdgeInsets.only(right: 3),
-                                      width: 8,
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: i <= card.stage ? AppTheme.accent : AppTheme.line,
-                                      ),
-                                    );
-                                  }),
-                                ),
-                                Text(
-                                  'Keyingi: ${card.nextDue}',
-                                  style: const TextStyle(fontSize: 11, color: AppTheme.grey, fontWeight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: valColor,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMetricTile(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.line),
+  Widget _buildFilterPill(String label) {
+    final isSelected = _selectedFilter == label;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFilter = label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.accent : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppTheme.accent : AppTheme.cardBorder,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected ? Colors.white : AppTheme.ink,
+            ),
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _buildFlashCardItem({
+    required String question,
+    required String answer,
+    String? badge,
+    required int filledDots,
+    required Color dotColor,
+    required String dueText,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: AppTheme.cardDecoration,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.grey)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  question,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.ink,
+                  ),
+                ),
+              ),
+              if (badge != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDE8E8),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    badge,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFFC4453C),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            answer,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF374151),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              // 5 ta bosqich nuqtalari
+              Row(
+                children: List.generate(5, (index) {
+                  final isFilled = index < filledDots;
+                  return Container(
+                    margin: const EdgeInsets.only(right: 4),
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: isFilled ? dotColor : const Color(0xFFCBD5E1),
+                      shape: BoxShape.circle,
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  dueText,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: AppTheme.grey,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CardEditScreen(
+                        store: widget.store,
+                        cardToEdit: FlashCard(
+                          id: 0,
+                          subjectId: 1,
+                          type: 'qa',
+                          question: question,
+                          answer: answer,
+                          stage: filledDots,
+                          intervalDays: 1,
+                          nextDue: '',
+                          correctCount: 0,
+                          wrongCount: 0,
+                          streakCorrect: 0,
+                          status: 'active',
+                          difficult: badge != null,
+                          createdAt: 0,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                child: const Icon(Icons.edit_outlined, size: 18, color: AppTheme.grey),
+              ),
+            ],
+          ),
         ],
       ),
     );
-  }
-
-  Widget _buildFilterChip(String label, String value) {
-    final isSelected = _filter == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      selectedColor: AppTheme.accent,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : AppTheme.ink,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        fontSize: 12,
-      ),
-      onSelected: (_) => setState(() => _filter = value),
-    );
-  }
-
-  Color _parseColor(String? hexString) {
-    if (hexString == null || hexString.isEmpty) return AppTheme.accent;
-    try {
-      final buffer = StringBuffer();
-      if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
-      buffer.write(hexString.replaceFirst('#', ''));
-      return Color(int.parse(buffer.toString(), radix: 16));
-    } catch (_) {
-      return AppTheme.accent;
-    }
   }
 }

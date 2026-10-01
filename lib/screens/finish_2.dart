@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../store/app_store.dart';
 import 'finish_3.dart';
@@ -21,14 +22,10 @@ class FinishStep2Screen extends StatefulWidget {
 
 class _FinishStep2ScreenState extends State<FinishStep2Screen> {
   int _rating = 4; // 1-5
-  String _kind = 'read';
-  final TextEditingController _noteController = TextEditingController();
-
-  final List<String> _quickPrefixes = [
-    'Tugatdim: ',
-    'Tushunmadim: ',
-    'Keyingi safar: ',
-  ];
+  final String _kind = 'read';
+  final TextEditingController _noteController = TextEditingController(
+    text: "Tugatdim: TryHackMe Nmap xonasi. Skanerlash turlari va -sV bayrog'i.",
+  );
 
   @override
   void dispose() {
@@ -41,174 +38,12 @@ class _FinishStep2ScreenState extends State<FinishStep2Screen> {
       if (_noteController.text.isEmpty) {
         _noteController.text = prefix;
       } else {
-        _noteController.text += '\n$prefix';
+        _noteController.text = '$prefix ${_noteController.text}';
       }
       _noteController.selection = TextSelection.fromPosition(
         TextPosition(offset: _noteController.text.length),
       );
     });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('2/3: Diqqat va xulosa'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. Diqqat bahosi (5 ta smaylik)
-            const Text(
-              'Diqqatingiz qanday boʻldi?',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                for (int i = 1; i <= 5; i++)
-                  GestureDetector(
-                    onTap: () => setState(() => _rating = i),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: _rating == i ? AppTheme.accent.withOpacity(0.15) : Colors.transparent,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: _rating == i ? AppTheme.accent : AppTheme.line,
-                          width: 2,
-                        ),
-                      ),
-                      child: Text(
-                        ['😫', '😕', '😐', '🙂', '🔥'][i - 1],
-                        style: const TextStyle(fontSize: 32),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 28),
-
-            // 2. Faoliyat turi (kind)
-            const Text(
-              'Faoliyat turi',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              children: [
-                _buildKindChip('Oʻqish/Nazariya', 'read'),
-                _buildKindChip('Amaliyot', 'practice'),
-                _buildKindChip('Loyiha', 'project'),
-                _buildKindChip('Takrorlash', 'review'),
-              ],
-            ),
-            const SizedBox(height: 28),
-
-            // 3. Nima o'rgandingiz?
-            const Text(
-              'Nima oʻrgandingiz? (Xulosa)',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            // Tayyor boshlanish chiplari
-            Wrap(
-              spacing: 8,
-              children: _quickPrefixes.map((prefix) {
-                return ActionChip(
-                  label: Text(prefix.replaceAll(': ', '')),
-                  backgroundColor: AppTheme.ink.withOpacity(0.06),
-                  onPressed: () => _addPrefix(prefix),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _noteController,
-              maxLines: 4,
-              decoration: InputDecoration(
-                hintText: 'Qisqa xulosalar, muhim gʻoyalar yoki savollar...',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppTheme.line),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppTheme.line),
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
-
-            // Tugmalar
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _saveDirectly,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text('Saqlash'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _goToStep3,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.ink,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text('Kartochkalar →', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildKindChip(String label, String value) {
-    final isSelected = _kind == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      selectedColor: AppTheme.accent,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : AppTheme.ink,
-        fontWeight: FontWeight.bold,
-      ),
-      onSelected: (_) => setState(() => _kind = value),
-    );
-  }
-
-  void _saveDirectly() async {
-    await widget.store.saveCompletedSession(
-      baseData: widget.sessionData,
-      rating: _rating,
-      note: _noteController.text.trim().isNotEmpty ? _noteController.text.trim() : null,
-      kind: _kind,
-      intentionDone: widget.intentionDone,
-      quickCardsText: [],
-    );
-
-    if (mounted) {
-      Navigator.popUntil(context, (route) => route.isFirst);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sessiya muvaffaqiyatli saqlandi!')),
-      );
-    }
   }
 
   void _goToStep3() {
@@ -222,6 +57,258 @@ class _FinishStep2ScreenState extends State<FinishStep2Screen> {
           kind: _kind,
           note: _noteController.text.trim(),
           intentionDone: widget.intentionDone,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Top Bar (Back va 2 / 3)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: AppTheme.squareIconDecoration,
+                      child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppTheme.ink),
+                    ),
+                  ),
+                  Text(
+                    '2 / 3',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                children: [
+                  Text(
+                    'Diqqatingiz qanday edi?',
+                    style: GoogleFonts.newsreader(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Vaqt emas, diqqat sifati muhim',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: AppTheme.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 5 ta baho kartochkalari
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildRatingItem(1, '😫'),
+                      _buildRatingItem(2, '😕'),
+                      _buildRatingItem(3, '🙂'),
+                      _buildRatingItem(4, '😀'),
+                      _buildRatingItem(5, '🤩'),
+                    ],
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Nima o'rgandingiz?
+                  Text(
+                    "Nima o'rgandingiz?",
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 3 ta tezkor chip
+                  Row(
+                    children: [
+                      _buildQuickChip('Tugatdim:'),
+                      const SizedBox(width: 8),
+                      _buildQuickChip('Tushunmadim:'),
+                      const SizedBox(width: 8),
+                      _buildQuickChip('Keyingi safar:'),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Yozuv kiritish maydoni
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: AppTheme.cardBorder),
+                    ),
+                    child: TextField(
+                      controller: _noteController,
+                      maxLines: 4,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        color: AppTheme.ink,
+                        height: 1.4,
+                      ),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.all(16),
+                        hintText: "Sessiyada nimalarni o'zlashtirdingiz?",
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Oxirgi yozuvlaringiz
+                  Text(
+                    'OXIRGI YOZUVLARINGIZ',
+                    style: AppTheme.sansLabel(fontSize: 11, color: AppTheme.grey),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '19-sen · Nmap asoslari, host discovery',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppTheme.grey),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '18-sen · TCP/IP qatlamlari, portlar',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppTheme.grey),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+
+            // Pastki tugmalar (O'tkazib yuborish va Davom)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _goToStep3,
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.cardBorder),
+                        ),
+                        child: Center(
+                          child: Text(
+                            "O'tkazib yuborish",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.ink,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _goToStep3,
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: AppTheme.accent,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Davom',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRatingItem(int value, String emoji) {
+    final isSelected = _rating == value;
+    return GestureDetector(
+      onTap: () => setState(() => _rating = value),
+      child: Container(
+        width: 60,
+        height: 74,
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFDDEEE4) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? AppTheme.accent : AppTheme.cardBorder,
+            width: isSelected ? 2.0 : 1.0,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 26)),
+            const SizedBox(height: 4),
+            Text(
+              '$value',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? AppTheme.accent : AppTheme.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickChip(String label) {
+    return GestureDetector(
+      onTap: () => _addPrefix(label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.cardBorder),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.ink,
+          ),
         ),
       ),
     );
