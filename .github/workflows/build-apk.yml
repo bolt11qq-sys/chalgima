@@ -36,7 +36,7 @@ jobs:
         run: flutter test
 
       - name: Build APK (Release)
-        run: flutter build apk --release
+        run: flutter build apk --release --verbose
 
       - name: Prepare APK files
         run: |
